@@ -5,25 +5,18 @@ const ma = @import("miniaudio");
 extern "c" fn puts([*:0]const u8) c_int;
 extern "c" fn getchar() c_int;
 
-fn dataCallback(
-    pDevice: ?*ma.ma_device,
-    pOutput: ?*anyopaque,
-    pInput: ?*const anyopaque,
-    frameCount: ma.ma_uint32,
-) callconv(.c) void {
-    _ = pInput;
-    const device = pDevice orelse return;
-    const user_data = device.pUserData orelse return;
-    const decoder: *ma.ma_decoder = @ptrCast(@alignCast(user_data));
-    _ = ma.ma_decoder_read_pcm_frames(decoder, pOutput, frameCount, null);
-}
+pub fn main(init: std.process.Init) !void {
+    const alloc = init.arena.allocator();
+    var iter = try init.minimal.args.iterateAllocator(alloc);
+    _ = iter.next();
 
-pub fn main() !void {
-    _ = puts("Playing sound.wav... Press Enter to quit.");
+    const fname = iter.next() orelse {
+        std.debug.print("usage: waz [file.wav]\n", .{});
+        return;
+    };
 
-    // 1. Initialize the decoder with your WAV file
     var decoder: ma.ma_decoder = undefined;
-    var result = ma.ma_decoder_init_file("sound.wav", null, &decoder);
+    var result = ma.ma_decoder_init_file(fname, null, &decoder);
     if (result != ma.MA_SUCCESS) {
         std.debug.print("Failed to load WAV file.\n", .{});
         return error.AudioLoadFailed;
@@ -57,3 +50,17 @@ pub fn main() !void {
     // Keep the program alive while playing
     _ = getchar();
 }
+
+fn dataCallback(
+    pDevice: ?*ma.ma_device,
+    pOutput: ?*anyopaque,
+    pInput: ?*const anyopaque,
+    frameCount: ma.ma_uint32,
+) callconv(.c) void {
+    _ = pInput;
+    const device = pDevice orelse return;
+    const user_data = device.pUserData orelse return;
+    const decoder: *ma.ma_decoder = @ptrCast(@alignCast(user_data));
+    _ = ma.ma_decoder_read_pcm_frames(decoder, pOutput, frameCount, null);
+}
+
