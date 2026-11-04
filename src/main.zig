@@ -5,6 +5,15 @@ const ma = @import("miniaudio");
 extern "c" fn puts([*:0]const u8) c_int;
 extern "c" fn getchar() c_int;
 
+const State = enum {
+    processing,
+    err,
+    success,
+};
+
+var state: State = .processing;
+var result_: ma.ma_result = 0;
+
 pub fn main(init: std.process.Init) !void {
     const alloc = init.arena.allocator();
     var iter = try init.minimal.args.iterateAllocator(alloc);
@@ -47,8 +56,21 @@ pub fn main(init: std.process.Init) !void {
         return error.DeviceStartFailed;
     }
 
-    // Keep the program alive while playing
-    _ = getchar();
+    while (true) {
+        _ = try init.io.sleep(.fromMilliseconds(100), .real);
+
+        switch (state) {
+            .success => break,
+            .processing => {},
+            .err => {
+                const desc = ma.ma_result_description(result_);
+                std.debug.print("Failed during playback: {s}\n", .{desc});
+                std.process.exit(@intCast(@mod(result_, 256)));
+            },
+        }
+    }
+
+    std.debug.print("done\n", .{});
 }
 
 fn dataCallback(
@@ -61,6 +83,14 @@ fn dataCallback(
     const device = pDevice orelse return;
     const user_data = device.pUserData orelse return;
     const decoder: *ma.ma_decoder = @ptrCast(@alignCast(user_data));
-    _ = ma.ma_decoder_read_pcm_frames(decoder, pOutput, frameCount, null);
+
+    var readFrames: ma.ma_uint64 = 0;
+    result_ = ma.ma_decoder_read_pcm_frames(decoder, pOutput, frameCount, &readFrames);
+    state = if (result_ == ma.MA_AT_END)
+        .success
+    else if (result_ != ma.MA_SUCCESS)
+        .err
+    else
+        .processing;
 }
 

@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
 
     // Create the executable and compile miniaudio's implementation as C.
     const exe = b.addExecutable(.{
-        .name = "audio_player",
+        .name = "waz",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
